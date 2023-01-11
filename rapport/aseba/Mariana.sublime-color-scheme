@@ -1,0 +1,38 @@
+{
+	"rules": [
+		{
+			"name": "Constant",
+			"scope": "constant.aseba",
+			"font_style": "bold",
+			"foreground": "var(white3)"
+		},
+		{
+			"name": "Event",
+			"scope": "event.aseba",
+			"foreground": "#45BE6B",
+			"font_style": "bold"
+		},
+		{
+			"name": "Custom Event",
+			"scope": "custom_event.aseba",
+			"foreground": "#83D13B",
+			"font_style": "italic"
+		},
+		{
+			"name": "Function",
+			"scope": "function.aseba",
+			"foreground": "#4297D3"
+		},
+		{
+			"name": "Sub",
+			"scope": "sub.aseba",
+			"foreground": "#45BCBE",
+			"font_style": "italic"
+		},
+		{
+			"name": "Property",
+			"scope": "property.aseba",
+			"foreground": "#D8D0C1"
+		}
+	]
+}

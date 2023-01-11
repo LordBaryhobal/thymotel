@@ -1,0 +1,90 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event size="1" name="pair_run"/>
+<event size="10" name="codeRes"/>
+<event size="2" name="my_prox"/>
+
+
+<!--list of constants-->
+
+
+<!--show keywords state-->
+<keywords flag="true"/>
+
+
+<!--node thymio-II-->
+<node nodeId="48446" name="thymio-II">var state = 0
+var index = 0
+var code[10]
+
+var delta = 1080
+var speed = 50
+
+var isBlack
+# reset outputs
+call sound.system(-1)
+call leds.top(0,0,0)
+call leds.bottom.left(0,10,0)
+call leds.bottom.right(0,10,0)
+call leds.circle(0,0,0,0,0,0,0,0)
+
+onevent prox
+	#emit my_prox prox.ground.ambiant
+	if prox.ground.ambiant[0] &lt; 14 then
+		isBlack = 1
+		if state == 1 then
+			call leds.bottom.left(10,10,0)
+			call leds.bottom.right(10,10,0)
+			state = 2
+			index = 0
+			timer.period[0] = delta/4
+		end
+		call leds.top(21,0,0)
+		#emit pair_run 0
+	else
+		isBlack = 0
+		call leds.top(0,21,0)
+		#emit pair_run 0
+	end
+
+onevent buttons
+	when button.center == 1 do
+		if state == 0 then
+			motor.left.target = speed
+			motor.right.target = speed
+			state = 1
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+			state = 0
+		end
+	end
+
+onevent timer0
+	call leds.bottom.left(21,21,21)
+	call leds.bottom.right(21,21,21)
+	timer.period[1] = 100
+	if index == 10 then
+		state = 0
+		motor.left.target = 0
+		motor.right.target = 0
+		timer.period[0] = 0
+		call leds.bottom.left(0,10,0)
+		call leds.bottom.right(0,10,0)
+		emit codeRes code
+	else
+		code[index] = isBlack
+		index++
+		timer.period[0] = delta
+	end
+
+onevent timer1
+	call leds.bottom.left(10,10,0)
+	call leds.bottom.right(10,10,0)
+	timer.period[1] = 0</node>
+
+
+</network>

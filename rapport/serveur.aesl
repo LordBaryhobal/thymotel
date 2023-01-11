@@ -1,0 +1,290 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event size="1" name="print"/>
+<event size="2" name="print2"/>
+<event size="4" name="print4"/>
+<event size="16" name="printlist_16_"/>
+<constant value="250" name="MOTORSPEED"/>
+<constant value="4" name="NB_COLUMNS"/>
+<constant value="16" name="NB_ROOM"/>
+<constant value="4" name="NB_ROWS"/>
+<constant value="1023" name="HANDSHAKE"/>
+<constant value="1" name="ASK_ID"/>
+<constant value="2" name="SEND_ID"/>
+<constant value="3" name="GOODBYE"/>
+<constant value="4" name="ROOM_NUM"/>
+<constant value="5" name="ASK_TIME"/>
+<constant value="6" name="WAITING_TIME"/>
+<constant value="7" name="MOVING"/>
+<constant value="0" name="WAITING_FOR_CLIENT"/>
+<constant value="1" name="PROCESSING_CLIENT"/>
+<constant value="2" name="ENTER_LIFT"/>
+<constant value="3" name="MOVING"/>
+<constant value="4" name="LEAVING_LIFT"/>
+<constant value="5" name="RETURNING"/>
+
+
+<!--node Thymio II 0 sur LAPTOP-M7Q18J9M - 8232-->
+<node nodeId="{79047833-11ee-4075-862b-d4edd373c8ba}" name="Thymio II 0 sur LAPTOP-M7Q18J9M - 8232"><![CDATA[# 0-->wait
+#1 --> processing client
+#2 --> enter_lift
+#3 -->moving
+#4-->leaving_lift
+#5-->return
+
+#moteur gauche --> hor : + droite, - gauche
+#moteur droite -- > ver: + descend, - monte
+
+var state = WAITING_FOR_CLIENT
+
+#comunication variables
+var received
+var ir_cmd
+var ir_data
+var wtime
+
+#database variable
+var data_base[NB_ROOM] = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
+var is_in_data_base = 0
+var free_room[NB_ROOM]
+var length
+var num_database
+var i
+var id = -1
+var new_room
+var room_index = 10
+
+#moving variables
+var direction = 1 #quand direction est 1 --> aller et 0 est le retour
+var room_coo[2]
+var ver
+var hor
+var time
+var t
+var ver_time[4] = [0,82,170,394]
+var hor_time[4] = [0,199,428,645]
+var ver_return_time[4] =[0,89,175,296]
+var hor_return_time[4] = [0,173,398,622]
+var htime
+var vtime
+
+sub get_roomcoo
+	room_coo[0] = room_index%NB_COLUMNS
+	room_coo[1] = room_index/NB_ROWS
+
+sub start_ver
+	motor.right.target = -MOTORSPEED*direction
+	motor.left.target = 0
+	timer.period[0] = vtime*10
+	
+sub start_hor
+	motor.right.target = MOTORSPEED*direction
+	motor.left.target = MOTORSPEED*direction
+	timer.period[1] = htime*10
+
+sub start_moving
+	direction = 1
+	callsub get_roomcoo
+	emit print2 room_coo
+	ver = room_coo[1]
+	hor = room_coo[0]
+
+	if  ver > 0 then
+		vtime = (ver_time[ver]*10)/ver
+	end
+
+	if  hor > 0 then
+		htime =(hor_time[hor]*10)/hor
+		emit print htime
+		callsub start_hor
+
+	elseif ver > 0 then
+		callsub start_ver
+
+	else
+		state = LEAVING_LIFT
+		timer.period[0] = 25000
+	end
+
+sub start_returning
+	direction = -1
+	ver = room_coo[1]
+	hor = room_coo[0]
+	if  hor > 0 then
+		htime = (hor_return_time[hor]*10)/hor
+	end
+
+	if  ver > 0 then
+		htime =(ver_return_time[ver]*10)/ver
+		callsub start_ver
+
+	elseif hor > 0 then
+		callsub start_hor
+	else
+		state = WAITING_FOR_CLIENT
+	end
+
+onevent timer0
+	timer.period[0] = 0
+	if  state==ENTER_LIFT then
+		state = MOVING
+		callsub start_moving
+
+	elseif state == LEAVING_LIFT then
+		state = RETURNING
+		callsub start_returning
+
+	else
+		ver -=1
+		if ver ==0 then
+			motor.right.target = 0
+			motor.left.target = 0
+			timer.period[0] = 2000
+
+		elseif ver < 0 then
+			if state == MOVING then
+				callsub start_hor
+
+			else
+				state = LEAVING_LIFT
+				timer.period[0] = 25000
+			end
+
+		else
+			timer.period[0] = vtime*10
+		end
+	end
+
+onevent timer1
+	timer.period[1] = 0
+	hor -= 1
+	if  hor == 0 then
+		motor.right.target = 0
+		motor.left.target = 0
+		timer.period[1] = 2000
+
+	elseif hor < 0 then
+		if state == MOVING then
+			callsub start_ver
+
+		else
+			state = WAITING_FOR_CLIENT
+		end
+
+	else
+		timer.period[1] = htime*10
+	end
+#calcul le temps pour atteindre la chambre
+sub calculatetime
+	callsub get_roomcoo
+	wtime = (hor_time[room_coo[0]]+ver_time[room_coo[1]]+1000+200)/200
+	
+#regarde si l'id dans num_database a une chambre et change la valeur de is_in_data_base si nécessaire
+sub indatabase
+	is_in_data_base = 0
+	for i in 1:NB_ROOM do
+		if num_database == data_base[i-1] then
+			is_in_data_base = 1
+			# met l'index de la première apparition du nombre dans la variable roomindex
+			room_index = i-1
+			return
+		end
+	end
+
+#regarde ce que le robot doit faire après avoir reçu l'id
+sub databasecheck 
+	room_index = -1
+	num_database = ir_data
+	callsub indatabase
+	if is_in_data_base == 0 then
+		length = 0
+		for i in 1:NB_ROOM do
+			#crée une liste d'index avec les chambres disponible et garde la longueur de la liste
+			if -1 == data_base[i-1] then
+				free_room[length]= i-1
+				length += 1
+			end
+		end
+		if length > 0 then
+			# génère un nombre entre 0 et length-1
+			call math.rand(new_room)
+			new_room = abs(new_room%length)
+			# attribut l'id à la chambre aléatoire
+			data_base[free_room[new_room]] = ir_data
+			room_index = free_room[new_room]
+			emit printlist_16_ data_base
+		end
+	end
+
+sub read_ir
+	ir_cmd = prox.comm.rx >> 6
+	ir_data = prox.comm.rx & 0b111111
+
+#initialise les valeurs
+onevent button.center
+	when button.center == 1 do
+		state = WAITING_FOR_CLIENT
+		call prox.comm.enable(1)
+		call leds.top(32,32,32)
+		motor.left.target =0
+		motor.right.target = 0
+		timer.period[0] = 0
+		timer.period[1] = 0
+	end
+
+#Communication
+onevent prox.comm
+	callsub read_ir
+	if  state ==WAITING_FOR_CLIENT and prox.comm.rx == HANDSHAKE then
+		prox.comm.tx = ASK_ID <<6
+		state = PROCESSING_CLIENT
+
+	elseif  state>PROCESSING_CLIENT and prox.comm.rx  == HANDSHAKE then
+		prox.comm.tx = MOVING <<6
+
+	elseif  state== PROCESSING_CLIENT and ir_cmd == SEND_ID  then
+		callsub databasecheck
+		if  room_index != -1 then
+			prox.comm.tx = (ROOM_NUM <<6)+ room_index
+		else
+			prox.comm.tx = GOODBYE <<6
+			state = WAITING_FOR_CLIENT
+		end
+
+	elseif state == PROCESSING_CLIENT and ir_cmd == ASK_TIME then
+		callsub calculatetime
+		prox.comm.tx = (WAITING_TIME<<6)+wtime
+		state = ENTER_LIFT
+		timer.period[0] = 20000
+	end
+	
+onevent rc5
+	when rc5.command==1 do
+		motor.left.target = 250
+	end
+
+	when rc5.command==4 do
+		motor.left.target = 0
+	end
+
+	when rc5.command==7 do
+		motor.left.target = -250
+	end
+
+	when rc5.command==2 do
+		motor.right.target = -250
+	end
+
+	when rc5.command==5 do
+		motor.right.target = 0
+	end
+
+	when rc5.command==8 do
+		motor.right.target = 250
+	end]]></node>
+
+
+</network>

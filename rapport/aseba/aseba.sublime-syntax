@@ -1,0 +1,101 @@
+%YAML 1.2
+---
+name: Aseba
+file_extensions: [aseba]
+scope: source.aseba
+
+variables:
+  reserved: '(var|sub|onevent|emit|callsub|call)'
+  keywords: '(if|elseif|else|end|when|do|then|and|or|not|for|in|while)'
+  operator: '=|\!=|>|<|\+|-|\*|\/|\&|%|\^'
+  
+  events: 'button\.(backward|left|center|forward|right)|buttons|prox\.comm|prox|tap|acc|mic|sound\.finished|temperature|rc5|motor|timer[01]'
+  
+
+contexts:
+  xml-event:
+    - match: '(<)(event) (size)(=)(\")(.*?)(\") (name)(=)(\")(.*?)(\")(/>)'
+      captures:
+        1: punctuation.definition.tag.begin.xml
+        2: entity.name.tag.localname.xml
+        3: entity.other.attribute-name.localname.xml
+        4: punctuation.separator.key-value.xml
+        5: punctuation.definition.string.begin.xml
+        6: meta.string.xml string.quoted.single.xml
+        7: punctuation.definition.string.end.xml
+        8: entity.other.attribute-name.localname.xml
+        9: punctuation.separator.key-value.xml
+        10: punctuation.definition.string.begin.xml
+        11: custom_event.aseba
+        12: punctuation.definition.string.end.xml
+        13: punctuation.definition.tag.end.xml
+
+  main:
+    - match: '#'
+      push:
+        - meta_scope: comment.line
+        - match: \n
+          pop: true
+    
+    - match: '(?=<!DOCTYPE)'
+      push: 'Packages/XML/XML.sublime-syntax'
+      with_prototype:
+        - match: '(?<=CDATA\[)'
+          pop: true
+        
+        - match: '[a-z0-9_]*[A-Z]{2,}[a-zA-Z0-9_]*'
+          scope: constant.aseba
+        
+        - include: xml-event
+          
+    
+    - match: '(?=\]\]\>)'
+      push: 'Packages/XML/XML.sublime-syntax'
+      with_prototype:
+        - match: '(?<=network\>)'
+          pop: true
+    
+    - match: '<!--'
+      push:
+        - meta_scope: comment.block
+        - match: '-->'
+          pop: true
+    
+    - match: '[a-z0-9_]*[A-Z]{2,}[a-zA-Z0-9_]*'
+      scope: constant.aseba
+    
+    - match: '0b\d+'
+      scope: constant.numeric
+    
+    - match: '((?<=[^a-zA-Z\d])|-)\d+'
+      scope: constant.numeric
+    
+    - match: '\b{{reserved}}\b'
+      scope: keyword.declaration
+    
+    - match: '\b{{keywords}}\b'
+      scope: keyword.control
+    
+    - match: '{{operator}}'
+      scope: keyword.operator
+    
+    - match: '(?<=onevent )({{events}})\b'
+      scope: event.aseba
+    
+    - match: '(?<=emit )({{events}})\b'
+      scope: event.aseba
+    
+    - match: '(?<=emit )\w+'
+      scope: custom_event.aseba
+    
+    - match: '\b(?![a-zA-Z0-9\._]+\()[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+'
+      scope: property.aseba
+    
+    - match: '(?<=call) [a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+(?=\()'
+      scope: function.aseba
+    
+    - match: '(?<=sub) [a-zA-Z0-9_]+'
+      scope: sub.aseba
+    
+    - match: '(?<=callsub) [a-zA-Z0-9_]+\b'
+      scope: sub.aseba

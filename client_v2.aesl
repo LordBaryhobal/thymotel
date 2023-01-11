@@ -1,0 +1,438 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event name="acc" size="3"/>
+<event name="angle" size="1"/>
+<event name="ir" size="2"/>
+<event name="result" size="6"/>
+<event name="state_evt" size="1"/>
+<constant name="ASK_ID" value="1"/>
+<constant name="ASK_TIME" value="5"/>
+<constant name="BITS" value="6"/>
+<constant name="GOODBYE" value="3"/>
+<constant name="HANDSHAKE" value="1023"/>
+<constant name="LINE_SPEED" value="90"/>
+<constant name="MOVING" value="7"/>
+<constant name="ROOM_NUM" value="4"/>
+<constant name="SEND_ID" value="2"/>
+<constant name="SPEED" value="75"/>
+<constant name="TURN_SPEED" value="150"/>
+<constant name="WAITING_TIME" value="6"/>
+<constant name="sBLACK_CAL" value="1"/>
+<constant name="sCOMM_ID" value="9"/>
+<constant name="sCOMM_TIME" value="10"/>
+<constant name="sEND_RAMP" value="13"/>
+<constant name="sGOING_UP" value="4"/>
+<constant name="sGOODBYE" value="100"/>
+<constant name="sIDLE" value="0"/>
+<constant name="sIN_LIFT" value="14"/>
+<constant name="sLEN" value="6"/>
+<constant name="sRAMP" value="12"/>
+<constant name="sREAD" value="7"/>
+<constant name="sREADY" value="2"/>
+<constant name="sTO_CODE" value="3"/>
+<constant name="sTO_LIFT" value="11"/>
+<constant name="sTO_ROOM" value="15"/>
+<constant name="sTO_SERVER" value="8"/>
+<constant name="sUP" value="5"/>
+
+
+<!--node C-1375-->
+<node name="C-1375" nodeId="{972695ad-4aa8-4173-841f-35da2c99229b}"><![CDATA[
+var state = sIDLE
+var prev_state = sIDLE
+var i = 0
+var j
+
+var black = 0
+var white = 0
+var avg
+var col # -1: indéfini / 0: blanc / 1: noir
+var last_col = 0
+
+var length
+var length2
+var code[BITS]
+
+var cur_col
+var to_round
+var rounded
+
+var angle
+var dec_val
+var k
+
+# 0 : aucun
+# 1 : droite
+# -1 : gauche
+var line_side = 0
+
+var ir_cmd
+var ir_data
+
+var ir_cmd_send
+var ir_data_send
+
+var id = 0
+var room_num
+var leds[4] = [0,0,0,0]
+
+var waiting_time
+
+#Décode transmission ir
+sub read_ir
+	ir_cmd = prox.comm.rx >> 6
+	ir_data = prox.comm.rx & 0b111111
+
+#Encode transmission ir
+sub send_ir
+	prox.comm.tx = (ir_cmd_send << 6) + ir_data_send
+
+#Afficher num de chambre
+sub set_room_num_leds
+	leds = [0,0,0,0]
+	if (room_num&0b1000) > 0 then
+		leds[0] = 32
+	end
+	if (room_num&0b0100) > 0 then
+		leds[1] = 32
+	end
+	if (room_num&0b0010) > 0 then
+		leds[2] = 32
+	end
+	if (room_num&0b0001) > 0 then
+		leds[3] = 32
+	end
+	call leds.circle(0,leds[2],leds[3],0,0,0,leds[0],leds[1])
+
+#Convertit le code binaire en décimal
+sub bin_to_dec
+	dec_val = 0
+	for k in 1:BITS do
+		dec_val += code[k-1] << (k-1)
+	end
+
+#Divise to_round par 10 + arrondi
+sub round
+	rounded = to_round/10
+	if to_round%10 >=5 then
+		rounded++
+	end
+
+#Affiche l'état
+sub update_state
+	if state == 0 then
+		call leds.circle(0,0,0,0,0,0,0,0)
+	elseif state == 1 then
+		call leds.circle(1,0,0,0,0,0,0,0)
+	elseif state == 2 then
+		call leds.circle(0,1,0,0,0,0,0,0)
+	elseif state == 3 then
+		call leds.circle(0,0,1,0,0,0,0,0)
+	elseif state == 4 then
+		call leds.circle(0,0,0,1,0,0,0,0)
+	elseif state == 5 then
+		call leds.circle(0,0,0,0,1,0,0,0)
+	elseif state == 6 then
+		call leds.circle(0,0,0,0,0,1,0,0)
+	elseif state == 7 then
+		call leds.circle(0,0,0,0,0,0,1,0)
+	elseif state == 8 then
+		call leds.circle(0,0,0,0,0,0,0,1)
+	end
+
+	if state != prev_state then
+		emit state_evt state
+		prev_state = state
+	end
+
+	if state == sREAD then
+		if col == -1 then
+			call leds.top(25,25,10)
+		elseif col == 0 then
+			call leds.top(0,31,0)
+		elseif col == 1 then
+			call leds.top(31,0,0)
+		end
+	end
+
+#Calcule la couleur moyenne sous le robot
+sub get_avg
+	avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+	callsub get_col
+
+#Définit s'il s'agit de blanc, noir ou autre
+sub get_col
+	if black == 0 or white == 0 then
+		col = -1
+
+	else
+		#10 *... *10 pour rester entre -32768 et 32767
+		col = 10*(avg-black)/(white-black)*10
+
+		if col < 40 then
+			col = 1
+		elseif col > 70 then
+			col = 0
+		else
+			col = -1
+		end
+	end
+
+	if col != -1 then
+		last_col = col
+	end
+
+onevent buttons
+	callsub get_avg
+	when button.center == 1 do
+		if state == sIDLE then
+			state = sBLACK_CAL
+			black = avg
+
+		elseif state == sBLACK_CAL then
+			state = sREADY
+			white = avg
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+		end
+	end
+
+	when button.forward == 1 do
+		if state == sREADY then
+			motor.left.target = LINE_SPEED
+			motor.right.target = LINE_SPEED
+			state = sTO_CODE
+		end
+	end
+
+	callsub update_state
+
+onevent motor
+	if state == sLEN then
+		length++
+	elseif state == sREAD then
+		length2++
+	end
+
+onevent prox
+	callsub get_avg
+
+	if state == sUP then
+		if col == 1 then
+			state = sLEN
+				prox.comm.tx = dec_val
+			length = 0
+		end
+
+	elseif state == sLEN then
+		if col == 0 then
+			i = -1
+			state = sREAD
+			cur_col = 0
+			length2 = 0
+		end
+
+	elseif state == sREAD then
+		if col != cur_col then
+			to_round = 10*length2/length
+			callsub round
+
+			length2 = rounded
+
+			j = 0
+			if cur_col != -1 then
+				while j < length2 do
+					if i+j >= 0 and i+j < BITS then
+						code[i+j] = cur_col
+					end
+					j++
+				end
+				i = i+length2
+			end
+			cur_col = last_col
+			length2 = 0
+
+			if i >= BITS then
+				state = sTO_SERVER
+				callsub bin_to_dec
+				
+				id = dec_val
+				emit result code
+
+				call prox.comm.enable(1)
+				prox.comm.tx = HANDSHAKE
+			end
+		end
+
+	elseif state == sTO_CODE or state == sTO_SERVER then
+		#Both white
+		when prox.ground.delta[0] >= 450 and prox.ground.delta[1] >= 450 do
+			if line_side == -1 then
+				motor.left.target = -TURN_SPEED
+				motor.right.target = TURN_SPEED
+			elseif line_side == 1 then
+				motor.left.target = TURN_SPEED
+				motor.right.target = -TURN_SPEED
+			end
+		end
+
+		#Left black
+		when prox.ground.delta[0] <= 400 and prox.ground.delta[1] >= 450 do
+			motor.left.target = LINE_SPEED
+			motor.right.target = TURN_SPEED
+			line_side = -1
+		end
+
+		#Right black
+		when prox.ground.delta[0] >= 450 and prox.ground.delta[1] <= 400 do
+			motor.left.target = TURN_SPEED
+			motor.right.target = LINE_SPEED
+			line_side = 1
+		end
+
+		#Both black
+		when prox.ground.delta[0] <= 400 and prox.ground.delta[1] <= 400 do
+			motor.left.target = LINE_SPEED
+			motor.right.target = LINE_SPEED
+			line_side = 0
+		end
+
+	elseif state == sIN_LIFT then
+		when prox.horizontal[2] > 3000 do
+			timer.period[0] = 25000
+		end
+		
+	elseif state == sTO_ROOM then
+		when prox.ground.delta[0] <= 500 and prox.ground.delta[1] <= 500  do
+			motor.left.target = 0
+			motor.right.target = 0
+		end
+	end
+
+	callsub update_state
+
+onevent timer0
+	timer.period[0] = 0
+
+	if state == sGOING_UP then
+		state = sUP
+		motor.left.target = SPEED
+		motor.right.target = SPEED
+
+	elseif state == sEND_RAMP then
+		state = sIN_LIFT
+
+		motor.left.target = 0
+		motor.right.target = 0
+
+		timer.period[0] = 1000
+
+	elseif state == sIN_LIFT then
+		waiting_time--
+
+		if waiting_time > 0 then
+			timer.period[0] = 1000
+		
+		else
+			state = sTO_ROOM
+			motor.left.target = SPEED
+			motor.right.target = SPEED
+		end
+		#state = sTO_ROOM
+		#motor.left.target = SPEED
+		#motor.right.target = SPEED
+
+	end
+	callsub update_state
+
+onevent timer1
+	if state == sTO_SERVER then
+		motor.left.target = 0
+		motor.right.target = 0
+	end
+
+onevent acc
+	emit acc acc
+	call math.atan2(angle, acc[1], acc[2])
+	emit angle angle
+
+	if state == sTO_CODE and angle >= 2000 then
+		state = sGOING_UP
+		timer.period[0] = 1000
+		callsub update_state
+
+	elseif state == sTO_LIFT and angle >= 2000 then
+		state = sRAMP
+
+	elseif state == sRAMP and angle < 100 then
+		state = sEND_RAMP
+		timer.period[0] = 2000
+	end
+
+onevent prox.comm
+	if prox.comm.rx != 0 then
+		callsub read_ir
+		emit ir [ir_cmd, ir_data]
+
+		if state == sTO_SERVER and ir_cmd == MOVING then
+			timer.period[1] = 1000
+			motor.left.target = 0
+			motor.right.target = 0
+			call sound.system(2)
+
+		elseif state == sTO_SERVER and ir_cmd == ASK_ID then
+			state = sCOMM_ID
+			motor.left.target = 0
+			motor.right.target = 0
+			ir_cmd_send = SEND_ID
+			ir_data_send = id
+			callsub send_ir
+
+		elseif state == sCOMM_ID then
+			if ir_cmd == GOODBYE then
+				state = sGOODBYE
+				call leds.top(32,0,0)
+				motor.left.target = 0
+				motor.right.target = 0
+				call sound.system(1)
+
+			elseif ir_cmd == ROOM_NUM then
+				state = sCOMM_TIME
+				room_num = ir_data
+				call leds.top(0,32,0)
+				callsub set_room_num_leds
+
+				ir_cmd_send = ASK_TIME
+				ir_data_send = 0
+				callsub send_ir
+			end
+		elseif state == sCOMM_TIME and ir_cmd == WAITING_TIME then
+			state = sTO_LIFT
+			waiting_time = ir_data*2
+
+			motor.left.target = 100
+			motor.right.target = 100
+		end
+		callsub update_state
+	end
+
+onevent rc5
+	when rc5.command == 80 do
+		motor.left.target = 200
+		motor.right.target = 200
+	end
+	when rc5.command == 81 do
+		motor.left.target = -200
+		motor.right.target = -200
+	end
+	when rc5.command == 87 do
+		motor.left.target = 0
+		motor.right.target = 0
+	end]]></node>
+
+
+</network>

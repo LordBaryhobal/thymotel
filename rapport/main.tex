@@ -1,0 +1,65 @@
+\documentclass[12pt,a4paper]{report}
+%\usepackage[utf8]{inputenc}
+%\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+
+%\usepackage{xcolor}			  % pour utiliser la couleur
+\usepackage{fancyhdr}		% pour en-tête et pied de page
+\usepackage{lastpage}		 % pour avoir le nombre de pages dans le document
+\usepackage{hyperref}		 % pour les liens
+\usepackage{multimedia}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{float}
+\usepackage{stmaryrd}
+
+\usepackage{fontspec}
+\setmainfont{Ubuntu-R}[
+  BoldFont        = Ubuntu-B,
+  ItalicFont      = Ubuntu-RI,
+  BoldItalicFont  = Ubuntu-BI
+]
+
+\hypersetup{
+	colorlinks=true,		% false : liens avec un cadre ; true : liens en couleurs
+	linkcolor=black,		% couleur des liens internes au document
+	citecolor=black,		% couleur des liens bibliographiques
+	filecolor=black,		 % couleur des liens aux fichiers
+	urlcolor=blue			 % couleur des liens internet
+}
+
+% configuration de l'en-tête et pied de page
+\pagestyle{fancy}
+
+% configuration de l'en-tête
+\renewcommand{\headrulewidth}{1pt}
+\fancyhead[L]{\leftmark}
+\fancyhead[C]{}
+\fancyhead[R]{\rightmark}
+
+% configuration du pied de page
+\renewcommand{\footrulewidth}{1pt}
+\fancyfoot[L]{OC 4\textsuperscript{e}}
+\fancyfoot[C]{\thepage/\pageref{LastPage}}
+\fancyfoot[R]{\today}
+
+%\title{\Huge \textbf{Thymotel}}
+%\author{Louis Heredero \\ \& \\ Mathéo Beney}
+
+\begin{document}
+  \parindent=0cm
+  %\maketitle
+  \parskip=0.5em
+  \include{title_toc}
+  \parskip=1em
+  %\include{demo}
+  \include{intro}
+  \include{code}
+  \include{deroulement}
+  \include{conclusion}
+  \include{annexes}
+
+\end{document}

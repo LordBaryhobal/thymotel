@@ -1,0 +1,172 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event size="10" name="codeRes"/>
+<event size="2" name="len"/>
+<event size="1" name="stateEvt"/>
+<constant value="50" name="speed"/>
+
+
+<!--node C-1321-->
+<node nodeId="{f076585a-7573-43a4-ab12-dfeb0ccdf6ff}" name="C-1321"><![CDATA[var state = 0
+# 0 : waiting
+# 1 : black calibrated
+# 2 : white calibrated
+# 3 : calculating length
+# 4 : reading
+
+var black = 0
+var white = 0
+var grey = 0
+
+var length=0
+var delta = 0
+var avg
+
+var code[10]
+var i = 0
+
+call leds.top(0,0,0)
+
+sub update_state
+emit stateEvt state
+	if  state == 0 then
+		call leds.circle(0,0,0,0,0,0,0,0)
+	elseif  state == 1 then
+		call leds.circle(1,0,0,0,0,0,0,0)
+	elseif  state == 2 then
+		call leds.circle(0,1,0,0,0,0,0,0)
+	elseif  state == 3 then
+		call leds.circle(0,0,1,0,0,0,0,0)
+	elseif  state == 4 then
+		call leds.circle(0,0,0,1,0,0,0,0)
+	end
+
+sub lights
+	#avg = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+	avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+	if avg <= grey then
+		call leds.top(12,0,0)
+	else
+		call leds.top(0,12,0)
+	end
+
+sub flash
+	call leds.bottom.left(21,21,21)
+	call leds.bottom.right(21,21,21)
+	timer.period[1] = 100
+
+onevent motor
+	#avg = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+	avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+	if  state == 3 and avg < grey then
+		emit len [length, length*speed/250]
+		length++
+	elseif state == 4 then
+		callsub lights
+	end
+
+onevent prox
+	#avg = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+	avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+	if avg <= grey - 100 then
+		if  state == 2 then
+			length = 0
+			call leds.bottom.left(21,21,0)
+			call leds.bottom.right(21,21,0)
+			state = 3
+			callsub update_state
+		end
+	elseif avg >= grey + 100 then
+		if  state == 3 then
+			call leds.bottom.left(0,21,21)
+			call leds.bottom.right(0,21,21)
+			#delta = length*10 * (100/speed)
+			delta = length*14
+			state = 4
+			callsub update_state
+			timer.period[0] = delta+delta/4
+			i = 0
+		end
+	end
+
+onevent buttons
+	when button.center == 1 do
+		if  state == 0 then
+			#black = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+			black = (prox.ground.delta[0]+prox.ground.delta[1])/2
+			state = 1
+			callsub update_state
+			
+		elseif  state == 1 then
+			#white = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+			white = (prox.ground.delta[0]+prox.ground.delta[1])/2
+			grey = (white+black)/2
+			state = 2
+			callsub update_state
+			
+		elseif  state == 2 then
+			motor.left.target = speed
+			motor.right.target = speed
+			
+		elseif  state == 3 then
+			
+		elseif  state == 4 then
+			
+		end
+	end
+
+onevent timer0
+	timer.period[0] = 0
+	if  state == 0 then
+		
+	elseif  state == 1 then
+		
+	elseif  state == 2 then
+		
+	elseif  state == 3 then
+		
+	elseif  state == 4 then
+		callsub flash
+		if i == 10 then
+			motor.left.target = 0
+			motor.right.target = 0
+			state = 0
+			callsub update_state
+			emit codeRes code
+			i = 0
+		else
+			#avg = (prox.ground.ambiant[0]+prox.ground.ambiant[1])/2
+			avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+			if avg <= grey-100 then
+				code[i] = 1
+			elseif avg >= grey + 100 then
+				code[i] = 0
+			end
+			timer.period[0] = delta
+			i++
+		end
+	end
+
+
+onevent timer1
+	call leds.bottom.left(0,0,0)
+	call leds.bottom.right(0,0,0)
+	timer.period[1] = 0
+	
+	if  state == 0 then
+		
+	elseif  state == 1 then
+		
+	elseif  state == 2 then
+		
+	elseif  state == 3 then
+		
+	elseif  state == 4 then
+		
+	end]]></node>
+
+
+</network>

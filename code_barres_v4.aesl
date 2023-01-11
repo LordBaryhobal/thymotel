@@ -1,0 +1,218 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event size="3" name="chunk"/>
+<event size="6" name="result"/>
+<event size="2" name="rnd"/>
+<event size="1" name="scan"/>
+<constant value="6" name="bits"/>
+<constant value="75" name="speed"/>
+
+
+<!--node -->
+<node name=""><![CDATA[#State:
+# 0: idle
+# 1: black calibrated
+# 2: white calibrated
+# 3: calculating length
+# 4: reading
+
+var state = 0
+var i = 0
+var j
+var delta
+
+var black = 0
+var white = 0
+var avg
+var col # -1: undefined / 0: white / 1: black
+var last_col = 0
+
+var length
+var length2
+var code[bits]
+
+var flash_col[3]
+
+var cur_col
+var to_round
+var rounded
+
+sub round
+	rounded = to_round/10
+	emit rnd [to_round, rounded]
+	if to_round%10 >=5 then
+		rounded++
+	end
+
+sub update_state
+	if state == 0 then
+		call leds.circle(0,0,0,0,0,0,0,0)
+	elseif state == 1 then
+		call leds.circle(1,0,0,0,0,0,0,0)
+	elseif state == 2 then
+		call leds.circle(0,1,0,0,0,0,0,0)
+	elseif state == 3 then
+		call leds.circle(0,0,1,0,0,0,0,0)
+	elseif state == 4 then
+		call leds.circle(0,0,0,1,0,0,0,0)
+	elseif state == 5 then
+		call leds.circle(0,0,0,0,1,0,0,0)
+	elseif state == 6 then
+		call leds.circle(0,0,0,0,0,1,0,0)
+	elseif state == 7 then
+		call leds.circle(0,0,0,0,0,0,1,0)
+	elseif state == 8 then
+		call leds.circle(0,0,0,0,0,0,0,1)
+	end
+	
+	if col == -1 then
+		call leds.top(25,25,10)
+	elseif col == 0 then
+		call leds.top(0,31,0)
+	elseif col == 1 then
+		call leds.top(31,0,0)
+	end
+
+sub get_avg
+	avg = (prox.ground.delta[0]+prox.ground.delta[1])/2
+	callsub get_col
+
+sub get_col
+	if black == 0 or white == 0 then
+		col = -1
+
+	else
+		col = 10*(avg-black)/(white-black)*10 #10 *... *10 to remain in the range -32768 to 32767
+	
+		if col < 40 then
+			col = 1
+		elseif col > 70 then
+			col = 0
+		else
+			col = -1
+		end
+	end
+	
+	if col != -1 then
+		last_col = col
+	end
+	emit scan col
+
+sub flash
+	call leds.bottom.left(flash_col[0],flash_col[1],flash_col[2])
+	call leds.bottom.right(flash_col[0],flash_col[1],flash_col[2])
+	timer.period[1] = 200
+
+sub unflash
+	call leds.bottom.left(0,0,0)
+	call leds.bottom.right(0,0,0)
+	timer.period[1] = 0
+
+onevent buttons
+	callsub get_avg
+	when button.center == 1 do
+		if state == 0 then
+			state = 1
+			black = avg
+
+		elseif state == 1 then
+			state = 2
+			white = avg
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+		end
+	end
+	
+	when button.forward == 1 do
+		if state == 2 then
+			motor.left.target = speed
+			motor.right.target = speed
+		end
+	end
+	
+	callsub update_state
+
+onevent motor
+	if state == 3 then
+		length++
+	elseif state == 4 then
+		length2++
+	end
+
+onevent prox
+	callsub get_avg
+	
+	if state == 2 then
+		if col == 1 then
+			state = 3
+			length = 0
+		end
+	
+	elseif state == 3 then
+		if col == 0 then
+			delta = 1500/speed * length
+			#length = length
+			i = -1
+			state = 4
+			cur_col = 0
+			length2 = 0
+			#timer.period[0] = delta+delta/2
+		end
+	
+	elseif state == 4 then
+		if col != cur_col then
+			to_round = 10*length2/length
+			callsub round
+			
+			emit chunk [cur_col, rounded, length2]
+			length2 = rounded
+			
+			j = 0
+			if cur_col != -1 then
+				while j < length2 do
+					if i+j >= 0 and i+j < bits then
+						code[i+j] = cur_col
+					end
+					j++
+				end
+				i = i+length2
+			end
+			cur_col = last_col
+			length2 = 0
+			
+			if i >= bits then
+				state = 5
+				emit result code
+			end
+		end
+	end
+	
+	callsub update_state
+
+
+onevent timer0
+	if state == 4 then
+		if i < bits then
+			callsub get_avg
+			code[i] = last_col
+			i++
+			
+			flash_col = [31,31,31]
+			callsub flash
+			
+		else
+			state = 5
+			emit result code
+		end
+	end
+	callsub update_state
+
+onevent timer1
+	callsub unflash]]></node>
+
+
+</network>

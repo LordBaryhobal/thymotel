@@ -1,0 +1,148 @@
+<!DOCTYPE aesl-source>
+<network>
+
+
+<!--list of global events-->
+<event name="codeRes" size="10"/>
+<event name="info" size="1"/>
+<event name="stateUpdate" size="1"/>
+<constant name="speed" value="50"/>
+
+
+<!--node C-1321-->
+<node name="C-1321" nodeId="{f076585a-7573-43a4-ab12-dfeb0ccdf6ff}"><![CDATA[var state = -1
+# 0 : waiting
+# 1 : black calibrated
+# 2 : white calibrated
+# 3 : waiting
+# 4 : calculating length
+# 5 : reading
+
+var index = 0
+var code[10]
+
+var length = 0
+var avgBlack = 0
+var avgWhite = 0
+var avgMid = 0
+
+var delta = 1080
+
+var isBlack
+# reset outputs
+call sound.system(-1)
+call leds.top(0,0,0)
+call leds.bottom.left(0,0,0)
+call leds.bottom.right(0,0,0)
+call leds.circle(0,0,0,0,0,0,0,0)
+
+sub update
+	emit stateUpdate state
+	if  state == 0 then
+		call leds.circle(0,0,0,0,0,0,0,0)
+	elseif  state == 1 then
+		call leds.circle(1,0,0,0,0,0,0,0)
+	elseif  state == 2 then
+		call leds.circle(0,1,0,0,0,0,0,0)
+	elseif  state == 3 then
+		call leds.circle(0,0,1,0,0,0,0,0)
+	elseif  state == 4 then
+		call leds.circle(0,0,0,1,0,0,0,0)
+	elseif  state == 5 then
+		call leds.circle(0,0,0,0,1,0,0,0)
+	end
+
+onevent motor
+	#If black detected
+	if prox.ground.delta[0] <= 400 and prox.ground.delta[1] <= 400 then
+		#First black stripe
+		if state == 0 then
+			state = 1
+			callsub update
+			length = 0
+			avgBlack = 0
+		
+		elseif state == 1 then
+			length++
+			avgBlack += prox.ground.ambiant[0] + prox.ground.ambiant[1]
+		
+		end
+	else
+		if  state == 1 then
+			avgBlack /= length * 2
+			state = 2
+			callsub update
+			delta = length*10 * (100/speed)
+			emit info length
+			emit info delta
+			timer.period[1] = delta
+		end
+	end
+	
+	if  state == 2 then
+		avgWhite += prox.ground.ambiant[0] + prox.ground.ambiant[1]
+	
+	elseif state == 3 then
+		if  prox.ground.ambiant[0] < avgMid then
+			call leds.top(21,0,0)
+			isBlack = 1
+		else
+			call leds.top(0,21,0)
+			isBlack = 0
+		end
+	end
+
+onevent prox
+	if 0 == 1 then
+		
+	end
+
+onevent buttons
+	when button.center == 1 do
+		if state == 0 then
+			motor.left.target = speed
+			motor.right.target = speed
+			#state = 1
+		else
+			motor.left.target = 0
+			motor.right.target = 0
+			state = 0
+			callsub update
+		end
+	end
+
+onevent timer0
+	call leds.bottom.left(21,21,21)
+	call leds.bottom.right(21,21,21)
+	timer.period[1] = 100
+	if index == 10 then
+		state = 4
+		callsub update
+		motor.left.target = 0
+		motor.right.target = 0
+		timer.period[0] = 0
+		call leds.bottom.left(0,10,0)
+		call leds.bottom.right(0,10,0)
+		emit codeRes code
+	else
+		code[index] = isBlack
+		index++
+		timer.period[0] = delta
+	end
+
+onevent timer1
+	call leds.bottom.left(10,10,0)
+	call leds.bottom.right(10,10,0)
+	timer.period[1] = 0
+	
+	if state == 2 then
+		avgWhite /= length * 2
+		avgMid = (avgWhite+avgBlack)/2
+		state = 3
+		callsub update
+		index = 0
+		timer.period[0] = delta/2
+	end]]></node>
+
+
+</network>

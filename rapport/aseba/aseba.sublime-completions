@@ -1,0 +1,60 @@
+{
+	"scope": "source.aseba",
+	"completions": [
+		{
+			"trigger": "onevent",
+			"contents": "onevent $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "sub",
+			"contents": "sub $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "emit",
+			"contents": "emit $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "callsub",
+			"contents": "callsub $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "call",
+			"contents": "call $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "var",
+			"contents": "var $0",
+			"kind": "keyword"
+		},
+		{
+			"trigger": "if",
+			"contents": "if $1 then\n	$0\nend",
+			"kind": "snippet"
+		},
+		{
+			"trigger": "else",
+			"contents": "else\n	$0",
+			"kind": "snippet"
+		},
+		{
+			"trigger": "elseif",
+			"contents": "elseif $1 then\n	$0",
+			"kind": "snippet"
+		},
+		{
+			"trigger": "for",
+			"contents": "for $1 in $2:$3 do\n	$0\nend",
+			"kind": "snippet"
+		},
+		{
+			"trigger": "when",
+			"contents": "when $1 do\n	$0\nend",
+			"kind": "snippet"
+		}
+	]
+}
