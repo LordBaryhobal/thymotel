@@ -2,7 +2,7 @@
 
 This is a school project involving [Thymios](https://www.thymio.org/), which are two-wheeled robots with infrared captors, buttons and more.
 
-It is a collaboration between [@MatB3](https://github.com/MatB3) and [myself](https://github.com/LordBaryhobal).
+It is a collaboration between [@MatBB3](https://github.com/MatBB3) and [myself](https://github.com/LordBaryhobal).
 
 Our project is a laser-cut wooden hotel for Thymios.
 
